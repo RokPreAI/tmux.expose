@@ -216,27 +216,37 @@ pub fn calculate_grid(
         .max(1);
     let rows = item_count.div_ceil(columns);
     let total_gap_width = CARD_GAP.saturating_mul(columns.saturating_sub(1) as u16);
-    let card_width = area
+    let usable_width = area
         .width
         .saturating_sub(total_gap_width)
-        .checked_div(columns as u16)
-        .unwrap_or(area.width)
-        .max(1);
+        .max(columns as u16);
+    let base_card_width = usable_width / columns as u16;
+    let extra_width = usable_width % columns as u16;
     let total_gap_height = CARD_GAP.saturating_mul(rows.saturating_sub(1) as u16);
-    let card_height = area
+    let usable_height = area
         .height
         .saturating_sub(total_gap_height)
-        .checked_div(rows as u16)
-        .unwrap_or(area.height)
-        .max(1);
+        .max(rows as u16);
+    let base_card_height = usable_height / rows as u16;
+    let extra_height = usable_height % rows as u16;
 
     let mut cards = Vec::with_capacity(item_count);
     for index in 0..item_count {
         let col = index % columns;
         let row = index / columns;
+        let card_width = base_card_width + u16::from((col as u16) < extra_width);
+        let card_height = base_card_height + u16::from((row as u16) < extra_height);
+        let x_offset = (0..col)
+            .map(|previous_col| base_card_width + u16::from((previous_col as u16) < extra_width))
+            .sum::<u16>()
+            + CARD_GAP.saturating_mul(col as u16);
+        let y_offset = (0..row)
+            .map(|previous_row| base_card_height + u16::from((previous_row as u16) < extra_height))
+            .sum::<u16>()
+            + CARD_GAP.saturating_mul(row as u16);
         cards.push(Rect::new(
-            area.x + col as u16 * (card_width + CARD_GAP),
-            area.y + row as u16 * (card_height + CARD_GAP),
+            area.x + x_offset,
+            area.y + y_offset,
             card_width,
             card_height,
         ));
@@ -263,6 +273,8 @@ fn calculate_automatic_columns(
     (1..=item_count.min(u16::MAX as usize))
         .min_by_key(|columns| {
             let rows = item_count.div_ceil(*columns);
+            let empty_slots = columns.saturating_mul(rows).saturating_sub(item_count);
+            let single_axis_penalty = usize::from(item_count > 2 && (*columns == 1 || rows == 1));
             let card_width = area
                 .width
                 .saturating_sub(CARD_GAP.saturating_mul(columns.saturating_sub(1) as u16))
@@ -278,7 +290,12 @@ fn calculate_automatic_columns(
                 .saturating_mul(10)
                 .abs_diff(u32::from(card_height).saturating_mul(16));
             let area = u32::from(card_width) * u32::from(card_height);
-            (aspect_penalty, std::cmp::Reverse(area))
+            (
+                single_axis_penalty,
+                empty_slots,
+                aspect_penalty,
+                std::cmp::Reverse(area),
+            )
         })
         .unwrap_or(1)
 }
@@ -476,17 +493,37 @@ mod tests {
         assert_eq!(grid.columns, 4);
         assert_eq!(grid.rows, 2);
         assert_eq!(grid.cards.len(), 8);
-        assert_eq!(grid.cards[0].width, 23);
+        assert_eq!(grid.cards[0].width, 24);
         assert_eq!(grid.cards[0].height, 14);
+        assert_eq!(grid.cards[3].x + grid.cards[3].width, 100);
     }
 
     #[test]
     fn grid_keeps_wide_screens_balanced_by_default() {
         let grid = calculate_grid(Rect::new(0, 0, 240, 60), 9, None, None);
 
-        assert_eq!(grid.columns, 5);
-        assert_eq!(grid.rows, 2);
+        assert_eq!(grid.columns, 3);
+        assert_eq!(grid.rows, 3);
         assert!(grid.cards[0].width > grid.cards[0].height);
+    }
+
+    #[test]
+    fn grid_prefers_complete_rows_when_space_is_available() {
+        let grid = calculate_grid(Rect::new(0, 0, 240, 60), 6, None, None);
+
+        assert_eq!(grid.columns, 3);
+        assert_eq!(grid.rows, 2);
+        assert_eq!(grid.cards.len(), 6);
+        assert_eq!(grid.cards[5].x + grid.cards[5].width, 240);
+    }
+
+    #[test]
+    fn grid_prefers_fewer_empty_slots_when_rows_cannot_be_complete() {
+        let grid = calculate_grid(Rect::new(0, 0, 240, 60), 7, None, None);
+
+        assert_eq!(grid.columns, 4);
+        assert_eq!(grid.rows, 2);
+        assert_eq!(grid.cards.len(), 7);
     }
 
     #[test]

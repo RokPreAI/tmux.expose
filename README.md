@@ -4,6 +4,8 @@
   <p><strong>Mission Control-style tmux session switching from a fast terminal UI.</strong></p>
 
   <p>
+    <a href="https://github.com/cesarferreira/tmux.expose/actions/workflows/rust-tests.yml"><img alt="CI" src="https://github.com/cesarferreira/tmux.expose/actions/workflows/rust-tests.yml/badge.svg"></a>
+    <a href="https://crates.io/crates/tmux-expose"><img alt="Crates.io" src="https://img.shields.io/crates/v/tmux-expose"></a>
     <a href="https://github.com/cesarferreira/tmux.expose/releases"><img alt="Release" src="https://img.shields.io/github/v/release/cesarferreira/tmux.expose?color=blue"></a>
     <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
   </p>
@@ -38,7 +40,13 @@ Switching tmux sessions with a list works, but it gives you names instead of con
 
 ## Install
 
-From this repository:
+The shortest path is crates.io:
+
+```bash
+cargo install tmux-expose
+```
+
+Or install from this repository:
 
 ```bash
 cargo install --path .
@@ -144,9 +152,7 @@ The app itself is terminal-only and does not depend on macOS-specific APIs.
 Before opening a PR, run:
 
 ```bash
-cargo fmt --check
-cargo test
-cargo clippy --all-targets --all-features -- -D warnings
+make check
 ```
 
 ## License

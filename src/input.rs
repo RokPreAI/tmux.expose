@@ -3,7 +3,9 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crate::model::App;
 
 pub fn handle_key(app: &mut App, key: KeyEvent, columns: usize) {
-    if key.code == KeyCode::Char('c') && key.modifiers == KeyModifiers::CONTROL {
+    if (key.code == KeyCode::Char('c') && key.modifiers == KeyModifiers::CONTROL)
+        || (key.code == KeyCode::Char('e') && key.modifiers == KeyModifiers::ALT)
+    {
         app.should_quit = true;
         return;
     }
@@ -132,6 +134,20 @@ mod tests {
         );
 
         assert!(app.should_quit);
+    }
+
+    #[test]
+    fn alt_e_marks_app_for_exit() {
+        let mut app = App::new(vec![session("one")], None);
+
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT),
+            1,
+        );
+
+        assert!(app.should_quit);
+        assert!(!app.should_switch);
     }
 
     #[test]

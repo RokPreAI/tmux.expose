@@ -122,6 +122,8 @@ It opens:
 tmux display-popup -w 100% -h 100% -E "tmux-expose"
 ```
 
+With the default binding, press `Alt+e` again while tmux.expose is open to close it without switching.
+
 ## Configuration
 
 Customize the tmux plugin before the `@plugin` line:

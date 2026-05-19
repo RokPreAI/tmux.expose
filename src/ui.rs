@@ -53,14 +53,7 @@ pub fn render(
         render_grid(frame, app, chunks[0], min_card_width, forced_columns);
     }
 
-    let footer_text = if let Some(query) = app.search_text() {
-        format!(
-            "Search: {query} · type to filter · ↑/↓/←/→ to move · Enter to switch · Esc to clear"
-        )
-    } else {
-        "↑/↓/←/→ or hjkl to move · / search · Enter to switch · q/Esc/Ctrl-C to quit".to_string()
-    };
-    let footer = Paragraph::new(footer_text).style(Style::default().fg(Color::DarkGray));
+    let footer = Paragraph::new(footer_hint_line(app.search_text()));
     frame.render_widget(footer, chunks[1]);
 }
 
@@ -82,11 +75,6 @@ pub fn render_grid(
 }
 
 pub fn render_card(frame: &mut Frame<'_>, session: &Session, selected: bool, area: Rect) {
-    let status = if session.attached {
-        "attached"
-    } else {
-        "detached"
-    };
     let title = format!(
         " {} ",
         truncate(&session.name, area.width.saturating_sub(12) as usize)
@@ -100,10 +88,7 @@ pub fn render_card(frame: &mut Frame<'_>, session: &Session, selected: bool, are
                 Modifier::empty()
             }),
         ))
-        .title_bottom(Span::styled(
-            format!(" {status} "),
-            Style::default().fg(Color::DarkGray),
-        ))
+        .title_bottom(session_status_span(session.attached))
         .borders(Borders::ALL)
         .border_type(if selected {
             BorderType::Double
@@ -155,6 +140,59 @@ pub fn render_card(frame: &mut Frame<'_>, session: &Session, selected: bool, are
         });
 
     frame.render_widget(paragraph, area);
+}
+
+fn session_status_span(attached: bool) -> Span<'static> {
+    if attached {
+        Span::styled(
+            " attached ",
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD),
+        )
+    } else {
+        Span::styled(" detached ", Style::default().fg(Color::DarkGray))
+    }
+}
+
+fn footer_hint_line(search_query: Option<&str>) -> Line<'static> {
+    match search_query {
+        Some(query) => Line::from(vec![
+            Span::styled(format!("Search: {query}"), Style::default().fg(Color::Cyan)),
+            hint_text(" · type to filter · "),
+            hint_key("↑/↓/←/→"),
+            hint_text(" to move · "),
+            hint_key("Enter"),
+            hint_text(" to switch · "),
+            hint_key("Esc"),
+            hint_text(" to clear"),
+        ]),
+        None => Line::from(vec![
+            hint_key("↑/↓/←/→"),
+            hint_text(" or "),
+            hint_key("hjkl"),
+            hint_text(" to move · "),
+            hint_key("/"),
+            hint_text(" search · "),
+            hint_key("Enter"),
+            hint_text(" to switch · "),
+            hint_key("q/Esc/Ctrl-C"),
+            hint_text(" to quit"),
+        ]),
+    }
+}
+
+fn hint_key(value: &'static str) -> Span<'static> {
+    Span::styled(
+        value,
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD),
+    )
+}
+
+fn hint_text(value: &'static str) -> Span<'static> {
+    Span::styled(value, Style::default().fg(Color::DarkGray))
 }
 
 pub fn calculate_grid(
@@ -484,6 +522,71 @@ mod tests {
 
         assert_eq!(grid.columns, 3);
         assert_eq!(grid.rows, 2);
+    }
+
+    #[test]
+    fn attached_status_is_highlighted() {
+        let span = session_status_span(true);
+
+        assert_eq!(span.content, " attached ");
+        assert_eq!(span.style.fg, Some(Color::Green));
+        assert!(span.style.add_modifier.contains(Modifier::BOLD));
+    }
+
+    #[test]
+    fn detached_status_stays_muted() {
+        let span = session_status_span(false);
+
+        assert_eq!(span.content, " detached ");
+        assert_eq!(span.style.fg, Some(Color::DarkGray));
+        assert!(!span.style.add_modifier.contains(Modifier::BOLD));
+    }
+
+    #[test]
+    fn footer_highlights_shortcuts_only() {
+        let line = footer_hint_line(None);
+
+        let shortcut_spans: Vec<&Span<'_>> = line
+            .spans
+            .iter()
+            .filter(|span| span.style.fg == Some(Color::Yellow))
+            .collect();
+        let shortcut_text: Vec<&str> = shortcut_spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+
+        assert_eq!(
+            shortcut_text,
+            vec!["↑/↓/←/→", "hjkl", "/", "Enter", "q/Esc/Ctrl-C"]
+        );
+        assert!(
+            shortcut_spans
+                .iter()
+                .all(|span| span.style.add_modifier.contains(Modifier::BOLD))
+        );
+        assert!(
+            line.spans
+                .iter()
+                .filter(|span| span.style.fg != Some(Color::Yellow))
+                .all(|span| span.style.fg == Some(Color::DarkGray))
+        );
+    }
+
+    #[test]
+    fn search_footer_highlights_search_shortcuts() {
+        let line = footer_hint_line(Some("api"));
+
+        let shortcut_text: Vec<&str> = line
+            .spans
+            .iter()
+            .filter(|span| span.style.fg == Some(Color::Yellow))
+            .map(|span| span.content.as_ref())
+            .collect();
+
+        assert_eq!(shortcut_text, vec!["↑/↓/←/→", "Enter", "Esc"]);
+        assert_eq!(line.spans[0].content, "Search: api");
+        assert_eq!(line.spans[0].style.fg, Some(Color::Cyan));
     }
 
     #[test]

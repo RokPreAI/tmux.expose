@@ -1,0 +1,221 @@
+use std::process::Command;
+
+use anyhow::{Context, Result, anyhow};
+
+use crate::model::Session;
+
+const FIELD_SEPARATOR: char = '\u{1f}';
+const SESSION_FORMAT: &str = "#{session_id}\u{1f}#{session_name}\u{1f}#{session_attached}\u{1f}#{session_windows}\u{1f}#{session_created}\u{1f}#{session_activity}";
+
+pub fn list_sessions() -> Result<Vec<Session>> {
+    let output = Command::new("tmux")
+        .args(["list-sessions", "-F", SESSION_FORMAT])
+        .output()
+        .context("failed to run tmux list-sessions")?;
+
+    if !output.status.success() {
+        return Err(tmux_error("tmux list-sessions failed", &output.stderr));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut sessions = parse_sessions(&stdout);
+
+    for session in &mut sessions {
+        session.current_window = current_window_name(&session.id).unwrap_or(None);
+        match capture_session_preview(&session.id, 200) {
+            Ok(preview) => {
+                session.preview = preview;
+                session.preview_error = None;
+            }
+            Err(error) => {
+                session.preview.clear();
+                session.preview_error = Some(error.to_string());
+            }
+        }
+    }
+
+    Ok(sessions)
+}
+
+pub fn current_session_name() -> Result<Option<String>> {
+    let output = Command::new("tmux")
+        .args(["display-message", "-p", "#S"])
+        .output()
+        .context("failed to run tmux display-message")?;
+
+    if !output.status.success() {
+        return Ok(None);
+    }
+
+    let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    Ok((!name.is_empty()).then_some(name))
+}
+
+pub fn current_window_name(session_target: &str) -> Result<Option<String>> {
+    let target = format!("{}:", session_target);
+    let output = Command::new("tmux")
+        .args(["display-message", "-p", "-t", &target, "#W"])
+        .output()
+        .with_context(|| format!("failed to query active window for session '{session_target}'"))?;
+
+    if !output.status.success() {
+        return Ok(None);
+    }
+
+    let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    Ok((!name.is_empty()).then_some(name))
+}
+
+pub fn capture_session_preview(session_target: &str, max_lines: usize) -> Result<Vec<String>> {
+    let target = format!("{}:", session_target);
+    let output = Command::new("tmux")
+        .args(["capture-pane", "-p", "-t", &target])
+        .output()
+        .with_context(|| format!("failed to capture pane for session '{session_target}'"))?;
+
+    if !output.status.success() {
+        return Err(tmux_error("tmux capture-pane failed", &output.stderr));
+    }
+
+    Ok(trim_preview(
+        String::from_utf8_lossy(&output.stdout).as_ref(),
+        max_lines,
+    ))
+}
+
+pub fn switch_client(session_target: &str) -> Result<()> {
+    let status = Command::new("tmux")
+        .args(["switch-client", "-t", session_target])
+        .status()
+        .with_context(|| format!("failed to switch to tmux session '{session_target}'"))?;
+
+    if !status.success() {
+        return Err(anyhow!("tmux switch-client failed for '{session_target}'"));
+    }
+
+    Ok(())
+}
+
+pub fn parse_sessions(output: &str) -> Vec<Session> {
+    output
+        .lines()
+        .filter_map(|line| {
+            let mut parts = line.splitn(6, FIELD_SEPARATOR);
+            let id = parts.next()?.to_string();
+            let name = parts.next()?.to_string();
+            if name.is_empty() {
+                return None;
+            }
+
+            let attached = parts.next().is_some_and(|value| value != "0");
+            let window_count = parts
+                .next()
+                .and_then(|value| value.parse::<u32>().ok())
+                .unwrap_or(0);
+            let _created = parts.next();
+            let last_activity = parts
+                .next()
+                .filter(|value| !value.is_empty())
+                .map(ToString::to_string);
+
+            Some(Session {
+                id,
+                name,
+                attached,
+                window_count,
+                current_window: None,
+                last_activity,
+                preview: Vec::new(),
+                preview_error: None,
+            })
+        })
+        .collect()
+}
+
+pub fn trim_preview(output: &str, max_lines: usize) -> Vec<String> {
+    let mut lines: Vec<String> = output
+        .lines()
+        .map(strip_ansi)
+        .map(|line| line.trim_end().to_string())
+        .collect();
+
+    while lines.last().is_some_and(|line| line.is_empty()) {
+        lines.pop();
+    }
+
+    let start = lines.len().saturating_sub(max_lines);
+    lines.into_iter().skip(start).collect()
+}
+
+fn strip_ansi(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '\u{1b}' && chars.peek() == Some(&'[') {
+            chars.next();
+            for next in chars.by_ref() {
+                if ('@'..='~').contains(&next) {
+                    break;
+                }
+            }
+        } else {
+            result.push(ch);
+        }
+    }
+
+    result
+}
+
+fn tmux_error(message: &str, stderr: &[u8]) -> anyhow::Error {
+    let stderr = String::from_utf8_lossy(stderr).trim().to_string();
+    if stderr.is_empty() {
+        anyhow!(message.to_string())
+    } else {
+        anyhow!("{message}: {stderr}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_session_lines_from_tmux_format() {
+        let sessions = parse_sessions(
+            "$1\u{1f}dev\u{1f}1\u{1f}4\u{1f}1710000000\u{1f}1710000300\n$2\u{1f}logs\u{1f}0\u{1f}2\u{1f}1710000100\u{1f}1710000400\n",
+        );
+
+        assert_eq!(sessions.len(), 2);
+        assert_eq!(sessions[0].id, "$1");
+        assert_eq!(sessions[0].name, "dev");
+        assert!(sessions[0].attached);
+        assert_eq!(sessions[0].window_count, 4);
+        assert_eq!(sessions[0].last_activity.as_deref(), Some("1710000300"));
+        assert_eq!(sessions[1].name, "logs");
+        assert!(!sessions[1].attached);
+    }
+
+    #[test]
+    fn parses_session_names_containing_pipe_characters() {
+        let sessions =
+            parse_sessions("$3\u{1f}dev|api\u{1f}0\u{1f}1\u{1f}1710000000\u{1f}1710000300\n");
+
+        assert_eq!(sessions[0].id, "$3");
+        assert_eq!(sessions[0].name, "dev|api");
+    }
+
+    #[test]
+    fn trims_preview_to_last_non_empty_visible_lines() {
+        let preview = trim_preview("first\nsecond\nthird\n\n", 2);
+
+        assert_eq!(preview, vec!["second".to_string(), "third".to_string()]);
+    }
+
+    #[test]
+    fn strips_ansi_escape_sequences_from_preview() {
+        let preview = trim_preview("\u{1b}[31mred\u{1b}[0m plain", 5);
+
+        assert_eq!(preview, vec!["red plain".to_string()]);
+    }
+}

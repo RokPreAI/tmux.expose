@@ -1,4 +1,4 @@
-.PHONY: all build build-release install clean test check fmt fmt-check clippy lint publish-dry-run run help
+.PHONY: all build build-release install clean test check fmt fmt-check clippy lint plugin-check publish-dry-run run help
 
 # Default target
 all: check build test
@@ -15,6 +15,7 @@ help:
 	@printf "  make fmt              Format source\n"
 	@printf "  make fmt-check        Check formatting\n"
 	@printf "  make clippy           Run clippy with warnings denied\n"
+	@printf "  make plugin-check     Check tmux plugin entrypoint\n"
 	@printf "  make publish-dry-run  Verify crates.io package\n"
 	@printf "  make run ARGS=...     Run tmux-expose with arguments\n"
 
@@ -39,7 +40,7 @@ test:
 	cargo test
 
 # Run all local checks
-check: fmt-check test clippy publish-dry-run
+check: fmt-check test clippy plugin-check publish-dry-run
 
 # Format code
 fmt:
@@ -55,6 +56,11 @@ clippy:
 
 # Lint code
 lint: fmt-check clippy
+
+# Check tmux plugin entrypoint
+plugin-check:
+	test -x tmux.expose.tmux
+	bash -n tmux.expose.tmux
 
 # Verify crates.io package
 publish-dry-run:

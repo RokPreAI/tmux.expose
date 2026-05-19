@@ -26,5 +26,7 @@ jobs:
         run: cargo test
       - name: Run clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Check tmux plugin entrypoint
+        run: make plugin-check
       - name: Verify crates.io package
         run: cargo publish --dry-run

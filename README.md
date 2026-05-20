@@ -132,10 +132,15 @@ set -g @tmux-expose-key 'E'
 set -g @tmux-expose-key-table 'prefix'
 set -g @tmux-expose-width '100%'
 set -g @tmux-expose-height '100%'
+set -g @tmux-expose-anchor 'center'
 set -g @tmux-expose-command 'tmux-expose --columns 2'
 
 set -g @plugin 'cesarferreira/tmux.expose'
 ```
+
+`@tmux-expose-anchor` accepts `center`, `top`, `bottom`, `left`, or `right`. For example,
+use `set -g @tmux-expose-anchor 'bottom'` with `set -g @tmux-expose-height '50%'` to show
+tmux.expose in the bottom half of the screen.
 
 Use a direct binding if you do not use TPM:
 

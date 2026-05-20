@@ -64,6 +64,7 @@ plugin-check:
 	bash tests/plugin_entrypoint_test.sh
 	grep -q 'width="$${width:-100%}"' tmux.expose.tmux
 	grep -q 'height="$${height:-100%}"' tmux.expose.tmux
+	grep -q 'anchor="$${anchor:-center}"' tmux.expose.tmux
 
 # Verify crates.io package
 publish-dry-run:

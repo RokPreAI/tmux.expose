@@ -19,6 +19,7 @@ if [[ "$1" == "show-option" ]]; then
     @tmux-expose-key-table) printf '%s' "${TMUX_EXPOSE_TEST_KEY_TABLE:-}" ;;
     @tmux-expose-width) printf '%s' "${TMUX_EXPOSE_TEST_WIDTH:-}" ;;
     @tmux-expose-height) printf '%s' "${TMUX_EXPOSE_TEST_HEIGHT:-}" ;;
+    @tmux-expose-anchor) printf '%s' "${TMUX_EXPOSE_TEST_ANCHOR:-}" ;;
     @tmux-expose-command) printf '%s' "${TMUX_EXPOSE_TEST_COMMAND:-}" ;;
   esac
   exit 0
@@ -33,6 +34,7 @@ FAKE_TMUX
     TMUX_EXPOSE_TEST_KEY_TABLE="${TMUX_EXPOSE_TEST_KEY_TABLE:-}" \
     TMUX_EXPOSE_TEST_WIDTH="${TMUX_EXPOSE_TEST_WIDTH:-}" \
     TMUX_EXPOSE_TEST_HEIGHT="${TMUX_EXPOSE_TEST_HEIGHT:-}" \
+    TMUX_EXPOSE_TEST_ANCHOR="${TMUX_EXPOSE_TEST_ANCHOR:-}" \
     TMUX_EXPOSE_TEST_COMMAND="${TMUX_EXPOSE_TEST_COMMAND:-}" \
     PATH="${tmpdir}:${PATH}" \
     bash "${repo_root}/tmux.expose.tmux"
@@ -60,3 +62,19 @@ assert_equals \
 assert_equals \
   'bind-key -T root C-e display-popup -w 80% -h 70% -E tmux-expose\ --columns\ 2 ' \
   "$(TMUX_EXPOSE_TEST_KEY=C-e TMUX_EXPOSE_TEST_KEY_TABLE=root TMUX_EXPOSE_TEST_WIDTH=80% TMUX_EXPOSE_TEST_HEIGHT=70% TMUX_EXPOSE_TEST_COMMAND='tmux-expose --columns 2' run_plugin)"
+
+assert_equals \
+  'bind-key -T root M-e display-popup -w 100% -h 50% -y \#\{popup_pane_bottom\} -E tmux-expose ' \
+  "$(TMUX_EXPOSE_TEST_ANCHOR=bottom TMUX_EXPOSE_TEST_HEIGHT=50% run_plugin)"
+
+assert_equals \
+  'bind-key -T root M-e display-popup -w 100% -h 50% -y \#\{popup_pane_top\} -E tmux-expose ' \
+  "$(TMUX_EXPOSE_TEST_ANCHOR=top TMUX_EXPOSE_TEST_HEIGHT=50% run_plugin)"
+
+assert_equals \
+  'bind-key -T root M-e display-popup -w 50% -h 100% -x \#\{popup_pane_right\} -E tmux-expose ' \
+  "$(TMUX_EXPOSE_TEST_ANCHOR=right TMUX_EXPOSE_TEST_WIDTH=50% run_plugin)"
+
+assert_equals \
+  'bind-key -T root M-e display-popup -w 50% -h 100% -x \#\{popup_pane_left\} -E tmux-expose ' \
+  "$(TMUX_EXPOSE_TEST_ANCHOR=left TMUX_EXPOSE_TEST_WIDTH=50% run_plugin)"

@@ -1,6 +1,7 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use ratatui::layout::Rect;
 
-use crate::model::App;
+use crate::{model::App, ui};
 
 pub fn handle_key(app: &mut App, key: KeyEvent, columns: usize) {
     if (key.code == KeyCode::Char('c') && key.modifiers == KeyModifiers::CONTROL)
@@ -25,6 +26,40 @@ pub fn handle_key(app: &mut App, key: KeyEvent, columns: usize) {
         (KeyCode::Down, _) | (KeyCode::Char('j'), _) => app.move_down(columns),
         _ => {}
     }
+}
+
+pub fn handle_mouse(
+    app: &mut App,
+    mouse: MouseEvent,
+    grid_area: Rect,
+    min_card_width: Option<u16>,
+    forced_columns: Option<usize>,
+) {
+    if !matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) {
+        return;
+    }
+
+    let grid = ui::calculate_grid(
+        grid_area,
+        app.visible_session_count(),
+        min_card_width,
+        forced_columns,
+    );
+    if let Some(index) = grid
+        .cards
+        .iter()
+        .position(|card| contains(*card, mouse.column, mouse.row))
+    {
+        app.selected_index = index;
+        app.should_switch = true;
+    }
+}
+
+fn contains(area: Rect, x: u16, y: u16) -> bool {
+    x >= area.x
+        && x < area.x.saturating_add(area.width)
+        && y >= area.y
+        && y < area.y.saturating_add(area.height)
 }
 
 fn handle_search_key(app: &mut App, key: KeyEvent, columns: usize) {
@@ -57,7 +92,10 @@ fn move_right(app: &mut App, columns: usize) {
 
 #[cfg(test)]
 mod tests {
-    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use crossterm::event::{
+        KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
+    use ratatui::layout::Rect;
 
     use super::*;
     use crate::model::{App, Session};
@@ -148,6 +186,23 @@ mod tests {
 
         assert!(app.should_quit);
         assert!(!app.should_switch);
+    }
+
+    #[test]
+    fn left_click_on_session_marks_it_for_switch() {
+        let mut app = App::new(vec![session("one"), session("two"), session("three")], None);
+        let mouse = MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 40,
+            row: 1,
+            modifiers: KeyModifiers::NONE,
+        };
+
+        handle_mouse(&mut app, mouse, Rect::new(0, 0, 100, 20), None, Some(3));
+
+        assert_eq!(app.selected_index, 1);
+        assert!(app.should_switch);
+        assert!(!app.should_quit);
     }
 
     #[test]

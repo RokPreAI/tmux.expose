@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use crossterm::{
     cursor::{Hide, Show},
-    event::{self, Event, KeyEventKind},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
@@ -33,7 +33,7 @@ impl TerminalGuard {
     fn enter() -> Result<Self> {
         enable_raw_mode().context("failed to enable raw mode")?;
         let guard = Self;
-        execute!(io::stdout(), EnterAlternateScreen, Hide)
+        execute!(io::stdout(), EnterAlternateScreen, Hide, EnableMouseCapture)
             .context("failed to enter alternate screen")?;
         Ok(guard)
     }
@@ -42,7 +42,12 @@ impl TerminalGuard {
 impl Drop for TerminalGuard {
     fn drop(&mut self) {
         let _ = disable_raw_mode();
-        let _ = execute!(io::stdout(), Show, LeaveAlternateScreen);
+        let _ = execute!(
+            io::stdout(),
+            Show,
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        );
     }
 }
 
@@ -107,6 +112,16 @@ fn main() -> Result<()> {
                     )?;
                     input::handle_key(&mut app, key, columns);
                 }
+                Event::Mouse(mouse) => {
+                    let grid_area = current_grid_area(&terminal)?;
+                    input::handle_mouse(
+                        &mut app,
+                        mouse,
+                        grid_area,
+                        cli.thumbnail_width,
+                        forced_columns,
+                    );
+                }
                 Event::Resize(_, _) => {}
                 _ => {}
             }
@@ -135,15 +150,14 @@ fn current_columns(
     min_card_width: Option<u16>,
     forced_columns: Option<usize>,
 ) -> Result<usize> {
-    let area = terminal.size().context("failed to read terminal size")?;
-    let body_height = area.height.saturating_sub(1);
-    let grid = ui::calculate_grid(
-        Rect::new(0, 0, area.width, body_height),
-        session_count,
-        min_card_width,
-        forced_columns,
-    );
+    let area = current_grid_area(terminal)?;
+    let grid = ui::calculate_grid(area, session_count, min_card_width, forced_columns);
     Ok(grid.columns)
+}
+
+fn current_grid_area(terminal: &Terminal<CrosstermBackend<io::Stdout>>) -> Result<Rect> {
+    let area = terminal.size().context("failed to read terminal size")?;
+    Ok(Rect::new(0, 0, area.width, area.height.saturating_sub(1)))
 }
 
 #[cfg(test)]

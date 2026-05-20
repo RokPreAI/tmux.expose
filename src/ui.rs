@@ -69,12 +69,26 @@ pub fn render_grid(
 
     for (index, card_area) in grid.cards.iter().enumerate() {
         if let Some(session) = sessions.get(index) {
-            render_card(frame, session, index == app.selected_index, *card_area);
+            let current_attached = session.attached
+                && app.current_session_name.as_deref() == Some(session.name.as_str());
+            render_card(
+                frame,
+                session,
+                index == app.selected_index,
+                current_attached,
+                *card_area,
+            );
         }
     }
 }
 
-pub fn render_card(frame: &mut Frame<'_>, session: &Session, selected: bool, area: Rect) {
+pub fn render_card(
+    frame: &mut Frame<'_>,
+    session: &Session,
+    selected: bool,
+    current_attached: bool,
+    area: Rect,
+) {
     let title = format!(
         " {} ",
         truncate(&session.name, area.width.saturating_sub(12) as usize)
@@ -82,11 +96,7 @@ pub fn render_card(frame: &mut Frame<'_>, session: &Session, selected: bool, are
     let block = Block::default()
         .title(Span::styled(
             title,
-            Style::default().add_modifier(if selected {
-                Modifier::BOLD
-            } else {
-                Modifier::empty()
-            }),
+            card_title_style(selected, current_attached),
         ))
         .title_bottom(session_status_span(session.attached))
         .borders(Borders::ALL)
@@ -95,13 +105,7 @@ pub fn render_card(frame: &mut Frame<'_>, session: &Session, selected: bool, are
         } else {
             BorderType::Plain
         })
-        .border_style(if selected {
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(Color::DarkGray)
-        });
+        .border_style(card_border_style(selected, current_attached));
 
     let preview_height = area.height.saturating_sub(5) as usize;
     let mut lines = Vec::new();
@@ -140,6 +144,34 @@ pub fn render_card(frame: &mut Frame<'_>, session: &Session, selected: bool, are
         });
 
     frame.render_widget(paragraph, area);
+}
+
+fn card_title_style(selected: bool, current_attached: bool) -> Style {
+    if selected {
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
+    } else if current_attached {
+        Style::default()
+            .fg(Color::Green)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+            .fg(Color::White)
+            .add_modifier(Modifier::BOLD)
+    }
+}
+
+fn card_border_style(selected: bool, current_attached: bool) -> Style {
+    if selected {
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
+    } else if current_attached {
+        Style::default().fg(Color::Green)
+    } else {
+        Style::default().fg(Color::DarkGray)
+    }
 }
 
 fn session_status_span(attached: bool) -> Span<'static> {
@@ -576,6 +608,46 @@ mod tests {
         assert_eq!(span.content, " detached ");
         assert_eq!(span.style.fg, Some(Color::DarkGray));
         assert!(!span.style.add_modifier.contains(Modifier::BOLD));
+    }
+
+    #[test]
+    fn selected_session_title_is_yellow_and_bold() {
+        let style = card_title_style(true, false);
+
+        assert_eq!(style.fg, Some(Color::Yellow));
+        assert!(style.add_modifier.contains(Modifier::BOLD));
+    }
+
+    #[test]
+    fn current_attached_session_title_is_green_and_bold() {
+        let style = card_title_style(false, true);
+
+        assert_eq!(style.fg, Some(Color::Green));
+        assert!(style.add_modifier.contains(Modifier::BOLD));
+    }
+
+    #[test]
+    fn other_session_titles_are_white_and_bold() {
+        let style = card_title_style(false, false);
+
+        assert_eq!(style.fg, Some(Color::White));
+        assert!(style.add_modifier.contains(Modifier::BOLD));
+    }
+
+    #[test]
+    fn current_attached_session_border_is_green_when_not_selected() {
+        let style = card_border_style(false, true);
+
+        assert_eq!(style.fg, Some(Color::Green));
+        assert!(!style.add_modifier.contains(Modifier::BOLD));
+    }
+
+    #[test]
+    fn selected_session_border_stays_yellow_and_bold() {
+        let style = card_border_style(true, true);
+
+        assert_eq!(style.fg, Some(Color::Yellow));
+        assert!(style.add_modifier.contains(Modifier::BOLD));
     }
 
     #[test]

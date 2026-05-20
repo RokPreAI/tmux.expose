@@ -267,7 +267,7 @@ mod tests {
     }
 
     #[test]
-    fn skips_preview_capture_for_current_session() {
+    fn skips_preview_capture_for_current_session_only_when_requested() {
         assert!(!should_capture_preview("$1", Some("$1")));
         assert!(should_capture_preview("$2", Some("$1")));
         assert!(should_capture_preview("$1", None));

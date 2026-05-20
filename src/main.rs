@@ -53,13 +53,10 @@ impl Drop for TerminalGuard {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let _guard = TerminalGuard::enter()?;
-    let backend = CrosstermBackend::new(io::stdout());
-    let mut terminal = Terminal::new(backend).context("failed to create terminal")?;
 
     let current_session_name = tmux::current_session_name().unwrap_or(None);
     let current_session_id = tmux::current_session_id().unwrap_or(None);
-    let mut app = match tmux::list_sessions_skipping_preview_for(current_session_id.as_deref()) {
+    let mut app = match tmux::list_sessions() {
         Ok(sessions) => App::new(sessions, current_session_name),
         Err(error) => {
             let mut app = App::new(Vec::new(), current_session_name);
@@ -67,6 +64,10 @@ fn main() -> Result<()> {
             app
         }
     };
+
+    let _guard = TerminalGuard::enter()?;
+    let backend = CrosstermBackend::new(io::stdout());
+    let mut terminal = Terminal::new(backend).context("failed to create terminal")?;
 
     let refresh_interval = Duration::from_millis(cli.refresh_interval);
     let mut last_refresh = Instant::now();
@@ -130,7 +131,10 @@ fn main() -> Result<()> {
         if last_refresh.elapsed() >= refresh_interval {
             match tmux::list_sessions_skipping_preview_for(current_session_id.as_deref()) {
                 Ok(sessions) => {
-                    app.replace_sessions(sessions);
+                    app.replace_sessions_preserving_preview_for(
+                        sessions,
+                        current_session_id.as_deref(),
+                    );
                     app.error = None;
                 }
                 Err(error) => {

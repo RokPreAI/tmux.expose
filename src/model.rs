@@ -108,6 +108,30 @@ impl App {
             .unwrap_or_else(|| self.selected_index.min(self.visible_session_count() - 1));
     }
 
+    pub fn replace_sessions_preserving_preview_for(
+        &mut self,
+        mut sessions: Vec<Session>,
+        preserved_session_id: Option<&str>,
+    ) {
+        if let Some(preserved_session_id) = preserved_session_id {
+            if let Some(previous) = self
+                .sessions
+                .iter()
+                .find(|session| session.id == preserved_session_id)
+            {
+                if let Some(next) = sessions
+                    .iter_mut()
+                    .find(|session| session.id == preserved_session_id)
+                {
+                    next.preview = previous.preview.clone();
+                    next.preview_error = previous.preview_error.clone();
+                }
+            }
+        }
+
+        self.replace_sessions(sessions);
+    }
+
     pub fn move_left(&mut self) {
         if self.selected_index > 0 {
             self.selected_index -= 1;
@@ -213,6 +237,32 @@ mod tests {
         app.replace_sessions(vec![session("new"), session("logs"), session("dev")]);
 
         assert_eq!(app.selected_session().unwrap().name, "logs");
+    }
+
+    #[test]
+    fn preserves_preview_for_matching_session_after_refresh() {
+        let mut app = App::new(
+            vec![session("dev"), session("logs")],
+            Some("dev".to_string()),
+        );
+        app.sessions[0].preview = vec!["snapshot".to_string()];
+        app.sessions[0].preview_error = None;
+
+        let mut refreshed_dev = session("dev");
+        refreshed_dev.preview = Vec::new();
+        refreshed_dev.preview_error = Some("Current session preview disabled".to_string());
+
+        let mut refreshed_logs = session("logs");
+        refreshed_logs.preview = vec!["live".to_string()];
+
+        app.replace_sessions_preserving_preview_for(
+            vec![refreshed_dev, refreshed_logs],
+            Some("$dev"),
+        );
+
+        assert_eq!(app.sessions[0].preview, vec!["snapshot".to_string()]);
+        assert_eq!(app.sessions[0].preview_error, None);
+        assert_eq!(app.sessions[1].preview, vec!["live".to_string()]);
     }
 
     #[test]

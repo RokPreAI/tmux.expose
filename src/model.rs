@@ -113,20 +113,17 @@ impl App {
         mut sessions: Vec<Session>,
         preserved_session_id: Option<&str>,
     ) {
-        if let Some(preserved_session_id) = preserved_session_id {
-            if let Some(previous) = self
+        if let Some(preserved_session_id) = preserved_session_id
+            && let Some(previous) = self
                 .sessions
                 .iter()
                 .find(|session| session.id == preserved_session_id)
-            {
-                if let Some(next) = sessions
-                    .iter_mut()
-                    .find(|session| session.id == preserved_session_id)
-                {
-                    next.preview = previous.preview.clone();
-                    next.preview_error = previous.preview_error.clone();
-                }
-            }
+            && let Some(next) = sessions
+                .iter_mut()
+                .find(|session| session.id == preserved_session_id)
+        {
+            next.preview = previous.preview.clone();
+            next.preview_error = previous.preview_error.clone();
         }
 
         self.replace_sessions(sessions);

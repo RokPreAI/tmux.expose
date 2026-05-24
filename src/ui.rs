@@ -45,7 +45,7 @@ pub fn render(
         render_centered_message(
             frame,
             chunks[0],
-            "No tmux sessions found.\nPress q or Esc to quit.",
+            "No tmux sessions found.\nPress Esc to quit.",
         );
     } else if app.visible_session_count() == 0 {
         render_centered_message(frame, chunks[0], "No matching sessions");
@@ -204,9 +204,13 @@ fn footer_hint_line(search_query: Option<&str>) -> Line<'static> {
         None => Line::from(vec![
             hint_text("type to filter · "),
             hint_key("↑/↓/←/→"),
+            hint_text(" or "),
+            hint_key("hjkl"),
             hint_text(" to move · "),
             hint_key("Enter"),
             hint_text(" to switch · "),
+            hint_key("q"),
+            hint_text(" to kill · "),
             hint_key("Esc/Ctrl-C"),
             hint_text(" to quit"),
         ]),
@@ -664,7 +668,7 @@ mod tests {
             .map(|span| span.content.as_ref())
             .collect();
 
-        assert_eq!(shortcut_text, vec!["↑/↓/←/→", "Enter", "Esc/Ctrl-C"]);
+        assert_eq!(shortcut_text, vec!["↑/↓/←/→", "hjkl", "Enter", "q", "Esc/Ctrl-C"]);
         assert!(
             shortcut_spans
                 .iter()

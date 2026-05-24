@@ -123,6 +123,19 @@ pub fn switch_client(session_target: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn kill_session(session_target: &str) -> Result<()> {
+    let status = Command::new("tmux")
+        .args(["kill-session", "-t", session_target])
+        .status()
+        .with_context(|| format!("failed to kill tmux session '{session_target}'"))?;
+
+    if !status.success() {
+        return Err(anyhow!("tmux kill-session failed for '{session_target}'"));
+    }
+
+    Ok(())
+}
+
 pub fn parse_sessions(output: &str) -> Vec<Session> {
     output
         .lines()

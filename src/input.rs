@@ -66,11 +66,12 @@ pub fn handle_key_with_toggle(
 
     match (key.code, key.modifiers) {
         (KeyCode::Esc, _) => app.should_quit = true,
+        (KeyCode::Char('q'), KeyModifiers::NONE) => app.should_kill = true,
         (KeyCode::Enter, _) => app.should_switch = true,
-        (KeyCode::Left, _) => move_left(app, columns),
-        (KeyCode::Right, _) => move_right(app, columns),
-        (KeyCode::Up, _) => app.move_up(columns),
-        (KeyCode::Down, _) => app.move_down(columns),
+        (KeyCode::Left, _) | (KeyCode::Char('h'), KeyModifiers::NONE) => move_left(app, columns),
+        (KeyCode::Right, _) | (KeyCode::Char('l'), KeyModifiers::NONE) => move_right(app, columns),
+        (KeyCode::Up, _) | (KeyCode::Char('k'), KeyModifiers::NONE) => app.move_up(columns),
+        (KeyCode::Down, _) | (KeyCode::Char('j'), KeyModifiers::NONE) => app.move_down(columns),
         (KeyCode::Char(ch), KeyModifiers::NONE | KeyModifiers::SHIFT) => push_filter_char(app, ch),
         _ => {}
     }
@@ -114,12 +115,13 @@ fn handle_search_key(app: &mut App, key: KeyEvent, columns: usize) {
     match (key.code, key.modifiers) {
         (KeyCode::Esc, _) if app.search_text().is_some_and(str::is_empty) => app.should_quit = true,
         (KeyCode::Esc, _) => app.clear_search(),
+        (KeyCode::Char('q'), KeyModifiers::NONE) => app.should_kill = true,
         (KeyCode::Enter, _) => app.should_switch = true,
         (KeyCode::Backspace, _) => app.pop_search_char(),
-        (KeyCode::Left, _) => move_left(app, columns),
-        (KeyCode::Right, _) => move_right(app, columns),
-        (KeyCode::Up, _) => app.move_up(columns),
-        (KeyCode::Down, _) => app.move_down(columns),
+        (KeyCode::Left, _) | (KeyCode::Char('h'), KeyModifiers::NONE) => move_left(app, columns),
+        (KeyCode::Right, _) | (KeyCode::Char('l'), KeyModifiers::NONE) => move_right(app, columns),
+        (KeyCode::Up, _) | (KeyCode::Char('k'), KeyModifiers::NONE) => app.move_up(columns),
+        (KeyCode::Down, _) | (KeyCode::Char('j'), KeyModifiers::NONE) => app.move_down(columns),
         (KeyCode::Char(ch), KeyModifiers::NONE | KeyModifiers::SHIFT) => push_filter_char(app, ch),
         _ => {}
     }
@@ -188,23 +190,27 @@ mod tests {
     }
 
     #[test]
-    fn hjkl_filter_instead_of_moving() {
+    fn hjkl_keys_move_selection() {
         let mut app = App::new(vec![session("one"), session("two"), session("three")], None);
 
-        handle_key(&mut app, key(KeyCode::Char('h')), 2);
+        handle_key(&mut app, key(KeyCode::Char('l')), 2);
+        handle_key(&mut app, key(KeyCode::Char('j')), 2);
+        assert_eq!(app.selected_index, 2);
 
-        assert_eq!(app.selected_index, 0);
-        assert_eq!(app.search_text(), Some("h"));
+        handle_key(&mut app, key(KeyCode::Char('h')), 2);
+        assert_eq!(app.selected_index, 2);
+        assert_eq!(app.search_text(), None);
     }
 
     #[test]
-    fn q_filters_instead_of_quitting() {
+    fn q_marks_app_to_kill_selected_session() {
         let mut app = App::new(vec![session("queue")], None);
 
         handle_key(&mut app, key(KeyCode::Char('q')), 1);
 
-        assert_eq!(app.search_text(), Some("q"));
+        assert!(app.should_kill);
         assert!(!app.should_quit);
+        assert_eq!(app.search_text(), None);
     }
 
     #[test]

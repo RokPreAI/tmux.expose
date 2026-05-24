@@ -17,6 +17,7 @@ pub struct App {
     pub current_session_name: Option<String>,
     pub should_quit: bool,
     pub should_switch: bool,
+    pub should_kill: bool,
     pub error: Option<String>,
     search_query: Option<String>,
 }
@@ -34,6 +35,7 @@ impl App {
             current_session_name,
             should_quit: false,
             should_switch: false,
+            should_kill: false,
             error: None,
             search_query: None,
         }

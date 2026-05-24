@@ -60,7 +60,7 @@ fn main() -> Result<()> {
         Ok(sessions) => App::new(sessions, current_session_name),
         Err(error) => {
             let mut app = App::new(Vec::new(), current_session_name);
-            app.error = Some(format!("{error}\n\nPress q or Esc to quit."));
+            app.error = Some(format!("{error}\n\nPress Esc to quit."));
             app
         }
     };
@@ -83,6 +83,38 @@ fn main() -> Result<()> {
             break;
         }
 
+        if app.should_kill {
+            if let Some(session) = app.selected_session() {
+                let selected_target = session.id.clone();
+                match tmux::kill_session(&selected_target) {
+                    Ok(()) => {
+                        app.should_kill = false;
+                        match tmux::list_sessions_skipping_preview_for(current_session_id.as_deref()) {
+                            Ok(sessions) => {
+                                app.replace_sessions_preserving_preview_for(
+                                    sessions,
+                                    current_session_id.as_deref(),
+                                );
+                                app.error = None;
+                                if app.sessions.is_empty() {
+                                    break;
+                                }
+                            }
+                            Err(error) => {
+                                app.error = Some(format!("{error}\n\nPress Esc to quit."));
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        app.error = Some(format!("{error}\n\nPress Esc to quit."));
+                        app.should_kill = false;
+                    }
+                }
+            } else {
+                app.should_kill = false;
+            }
+        }
+
         if app.should_switch {
             if let Some(session) = app.selected_session() {
                 let selected_name = session.name.clone();
@@ -94,7 +126,7 @@ fn main() -> Result<()> {
                 match tmux::switch_client(&selected_target) {
                     Ok(()) => break,
                     Err(error) => {
-                        app.error = Some(format!("{error}\n\nPress q or Esc to quit."));
+                        app.error = Some(format!("{error}\n\nPress Esc to quit."));
                         app.should_switch = false;
                     }
                 }
@@ -141,7 +173,7 @@ fn main() -> Result<()> {
                     app.error = None;
                 }
                 Err(error) => {
-                    app.error = Some(format!("{error}\n\nPress q or Esc to quit."));
+                    app.error = Some(format!("{error}\n\nPress Esc to quit."));
                 }
             }
             last_refresh = Instant::now();
